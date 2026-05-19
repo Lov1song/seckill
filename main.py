@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import users,seckills,products,orders,coupons,agents
 from models import user, product, seckill, order,coupon
 from dotenv import load_dotenv
+
 import os
 load_dotenv()
 
