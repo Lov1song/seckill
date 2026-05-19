@@ -7,6 +7,9 @@ from models.user import User
 from models.product import Product
 from schemas.product import ProductCreate, ProductResponse
 from response import ApiResponse
+import json
+from utils.redis_client import r
+
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -18,6 +21,12 @@ def get_products(db: Session = Depends(get_db)):
     # 查询单个商品，不需要登录
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(product_id: int, db: Session = Depends(get_db)):
+     # 先查 Redis
+    cache_key = f"product:{product_id}"
+    cached = r.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
     product = db.get(Product, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="商品不存在")
@@ -59,6 +68,12 @@ def update_product(
     product.stock = data.stock
     db.commit()
     db.refresh(product)
+
+    #更新缓存
+    r.delete(f"product:{product_id}")
+    for key in r.scan_iter(f"search:products:*"):
+        r.delete(key)
+
     return ApiResponse.ok(data=ProductResponse.model_validate(product))
 
 # 删除商品，需要登录
@@ -74,4 +89,9 @@ def delete_product(
 
     db.delete(product)
     db.commit()
+
+    # 删除缓存
+    r.delete(f"product:{product_id}")
+    for key in r.scan_iter("product:search:*"):
+        r.delete(key)
     return ApiResponse.ok(message="删除成功")

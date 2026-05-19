@@ -6,6 +6,8 @@ from models.coupon import Coupon, UserCoupon
 from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel
+from utils.redis_client import r
+import logging
 # 用 BaseModel 定义工具参数，避免序列化问题
 class SearchProductsInput(BaseModel):
     keyword: str
@@ -22,9 +24,19 @@ class CalculateBestDealInput(BaseModel):
     user_id: int
     product_id: int
 
+logger = logging.getLogger(__name__)
+
 @tool(args_schema=SearchProductsInput)
 def search_products(keyword:str) -> str:
     """搜索商品信息，输入关键词，返回匹配的商品列表"""
+
+    #先查Redis缓存
+    cache_key = f"search:products:{keyword}"
+    cached = r.get(cache_key)
+    if cached:
+        logger.info(f"从Redis缓存获取搜索结果，关键词：{keyword}")
+        return cached
+
     db = SessionLocal()
     products = db.query(Product).filter(Product.name.contains(keyword)).all()
     db.close()
