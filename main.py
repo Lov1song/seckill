@@ -4,11 +4,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import users,seckills,products,orders,coupons,agents
 from models import user, product, seckill, order,coupon
 from dotenv import load_dotenv
-
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 load_dotenv()
 
 app = FastAPI(title="智能电商秒杀系统")
+
+#创造限流器
+limiter = Limiter(key_func=get_remote_address)
+
+app.state.limiter = limiter
+
+#限流超出的处理
+app.add_exception_handler(RateLimitExceeded,_rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

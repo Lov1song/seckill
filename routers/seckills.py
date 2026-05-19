@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,Request
 from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import get_current_user
@@ -9,12 +9,16 @@ from utils.redis_client import (
     init_seckill_stock, deduct_stock,
     check_user_seckill, mark_user_seckill
 )
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from response import ApiResponse
 from datetime import datetime, timezone
 from typing import List
 from tasks.order_tasks import create_order_task
 
 router = APIRouter(prefix="/seckills", tags=["seckills"])
+
+limiter = Limiter(key_func=get_remote_address)
 
 # 创建秒杀活动（管理员操作）
 @router.post("/activities",response_model=ApiResponse)
@@ -51,9 +55,11 @@ def get_activities(db: Session = Depends(get_db)):
     return db.query(SeckillActivity).all()
 
 
-# ****用户参与秒杀****
+# ****用户参与秒杀****  添加限流装饰器
 @router.post("/buy",response_model=ApiResponse)
+@limiter.limit("5/minute")  # 每分钟限制5次请求
 def seckill_buy(
+    request:Request,# 必须加这个参数，限流器需要
     data:SeckillRequest,
     current_user:User = Depends(get_current_user),
     db:Session = Depends(get_db)
