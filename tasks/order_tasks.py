@@ -4,7 +4,7 @@ from models.order import Order
 from utils.redis_client import r
 import logging
 from models import user, product, seckill, order,coupon as order_model
-
+from models.seckill import SeckillActivity
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,12 @@ def create_order_task(self, user_id: int, activity_id: int, amount: float):
             status="unpaid"
         )
         db.add(order)
+        #同步更新数据库库存
+        activity = db.get(SeckillActivity,activity_id)
+        if activity and activity.avavilable_stock > 0:
+            activity.avavilable_stock -= 1
+            logger.info(f"库存扣减成功，剩余库存：{activity.avavilable_stock}")
+
         db.commit()
         db.refresh(order)
         
@@ -46,8 +52,14 @@ def cancel_unpaid_order(order_id: int):
     
     if order and order.status == "unpaid":
         order.status = "cancelled"
-        db.commit()
         
+        # 释放数据库库存
+        activity = db.get(SeckillActivity, order.seckill_activity_id)
+        if activity:
+            activity.available_stock += 1
+            logger.info(f"订单 {order_id} 取消，数据库库存释放：{activity.available_stock}")
+        
+        db.commit()
         # 释放 Redis 库存
         r.incr(f"seckill:stock:{order.seckill_activity_id}")
         logger.info(f"订单 {order_id} 超时取消，库存已释放")
