@@ -16,3 +16,11 @@ celery.conf.update(
     result_serializer="json",
     timezone="Asia/Shanghai"
 )
+
+#定时任务配置
+celery.conf.beat_schedule = {
+    "update-activity-status-every-minute": {
+        "task": "tasks.order_tasks.update_activity_status",
+        "schedule": 60.0,  # 每分钟执行一次
+    },
+}

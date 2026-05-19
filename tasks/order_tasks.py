@@ -1,12 +1,42 @@
 from celery_app import celery
 from database import SessionLocal
 from models.order import Order
-from utils.redis_client import r
+from utils.redis_client import r,init_seckill_stock
 import logging
 from models import user, product, seckill, order,coupon as order_model
 from models.seckill import SeckillActivity
-
+from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
+
+@celery.task
+def update_activity_status():
+    db = SessionLocal()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    #将时间活动改成active
+    pending_activities = db.query(SeckillActivity).filter(
+        SeckillActivity.status == "pending",
+        SeckillActivity.start_time <= now
+    ).all()
+
+    for activity in pending_activities:
+        activity.status = "active"
+        #预热库存到Redis
+        init_seckill_stock(activity.id,activity.total_stock)
+        logger.info(f"活动 {activity.id} 已开始，库存已预热到Redis")
+
+    #将过期活动改成expired
+    active_activities = db.query(SeckillActivity).filter(
+        SeckillActivity.status == "active",
+        SeckillActivity.end_time <= now
+    ).all()
+    for activity in active_activities:
+        activity.status = "ended"
+        # 清除 Redis 库存
+        r.delete(f"seckill:stock:{activity.id}")
+        logger.info(f"活动 {activity.id} 结束，Redis 库存已清除")
+    db.commit()
+    db.close()
 
 @celery.task(bind=True, max_retries=3, default_retry_delay=5)
 def create_order_task(self, user_id: int, activity_id: int, amount: float):
