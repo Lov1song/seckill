@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import TypedDict, Annotated
-from agent.tools import search_products, get_seckill_activities, get_user_coupons, calculate_best_deal
+from agent.tools import search_products, get_seckill_activities, get_user_coupons, calculate_best_deal, set_price_alert, get_price_alerts
 from agent.prompts import SYSTEM_PROMPT
 import os
 
@@ -15,7 +15,7 @@ import os
 api_key = os.getenv("DASHSCOPE_API_KEY")
 print(f"API Key: {api_key[:10]}...")  # 只打印前10位，安全起见
 
-tools = [search_products,get_seckill_activities,get_seckill_activities,get_user_coupons,calculate_best_deal]
+tools = [search_products,get_seckill_activities,get_seckill_activities,get_user_coupons,calculate_best_deal,set_price_alert,get_price_alerts]
 
 llm = ChatOpenAI(
     model = "qwen-plus",

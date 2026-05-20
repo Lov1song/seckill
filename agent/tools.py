@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 from database import SessionLocal
 from models.product import Product
 from models.seckill import SeckillActivity
+from models.price_alert import PriceAlert
 from models.coupon import Coupon, UserCoupon
 from datetime import datetime, timezone
 from typing import Optional
@@ -24,7 +25,77 @@ class CalculateBestDealInput(BaseModel):
     user_id: int
     product_id: int
 
+class SetPriceAlertInput(BaseModel):
+    user_id:int
+    product_id:int
+    target_price:float
+
+class GetPriceAlertInput(BaseModel):
+    user_id:int
+
+
 logger = logging.getLogger(__name__)
+
+@tool(args_schema=SetPriceAlertInput)
+def set_price_alert(user_id:int, product_id:int, target_price:float) -> str:
+    """设置价格预警，当商品价格降到目标价格时通知用户"""
+    db = SessionLocal()
+
+    product = db.get(Product,product_id)
+    if not product:
+        db.close()
+        return f"商品ID {product_id} 不存在"
+    
+    # 检查是否已设置过
+    existing = db.query(PriceAlert).filter(
+        PriceAlert.user_id == user_id,
+        PriceAlert.product_id == product_id,
+        PriceAlert.is_triggered == False
+    ).first()
+
+    if existing:
+        existing.target_price = target_price
+        existing.created_at = datetime.now(timezone.utc)
+        db.commit()
+        db.close()
+        return f"已更新价格预警：商品ID {product_id} 目标价 {target_price}元"
+    
+    alter = PriceAlert(
+        user_id=user_id,
+        product_id=product_id,
+        target_price=target_price
+    )
+    db.add(alter)
+    db.commit()
+    db.close()
+    return f"已设置价格预警：商品ID {product_id} 目标价 {target_price}元"
+
+
+@tool(args_schema=GetPriceAlertInput)
+def get_price_alerts(user_id: int) -> str:
+    """查询用户已设置的价格预警列表"""
+    db = SessionLocal()
+    from sqlalchemy.orm import joinedload
+
+    alerts = db.query(PriceAlert).options(
+        joinedload(PriceAlert.product)
+    ).filter(
+        PriceAlert.user_id == user_id,
+        PriceAlert.is_triggered == False
+    ).all()
+    db.close()
+
+    if not alerts:
+        return "您暂未设置任何价格预警"
+
+    result = []
+    for a in alerts:
+        result.append(
+            f"商品：{a.product.name} | 当前价：{a.product.price}元 | "
+            f"目标价：{a.target_price}元 | 设置时间：{a.created_at}"
+        )
+    return "\n".join(result)
+
 
 @tool(args_schema=SearchProductsInput)
 def search_products(keyword:str) -> str:

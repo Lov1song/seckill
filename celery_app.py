@@ -8,7 +8,7 @@ celery = Celery(
     "tasks",
     broker=f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/0",
     backend=f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/1",
-    include=["tasks.order_tasks"]
+    include=["tasks.order_tasks", "tasks.alert_tasks"] 
 )
 
 celery.conf.update(
@@ -17,10 +17,13 @@ celery.conf.update(
     timezone="Asia/Shanghai"
 )
 
-#定时任务配置
 celery.conf.beat_schedule = {
-    "update-activity-status-every-minute": {
+    "update-activity-status": {
         "task": "tasks.order_tasks.update_activity_status",
-        "schedule": 60.0,  # 每分钟执行一次
+        "schedule": 60.0
     },
+    "check-price-alerts": {
+        "task": "tasks.alert_tasks.check_price_alerts",
+        "schedule": 3600.0  # 每小时检查一次
+    }
 }

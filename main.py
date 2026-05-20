@@ -2,7 +2,7 @@ from fastapi import FastAPI,HTTPException,Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from routers import users,seckills,products,orders,coupons,agents
-from models import user, product, seckill, order,coupon
+from models import user, product, seckill, order,coupon,price_alert
 from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
